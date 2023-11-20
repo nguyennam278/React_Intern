@@ -10,6 +10,8 @@ import _ from "lodash";
 import { debounce } from "lodash";
 import "./TableUser.scss";
 import { CSVLink, CSVDownload } from "react-csv";
+import { toast } from "react-toastify";
+import Papa from "papaparse";
 const TableUsers = (props) => {
   const [listUsers, setListUsers] = useState([]);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -30,7 +32,6 @@ const TableUsers = (props) => {
   const [dataExport, setDataExport] = useState([]);
   const getUsers = async (page) => {
     let res = await fetchAllUser(page);
-    console.log(">>> check new res", res);
 
     if (res && res.data) {
       setTotalUsers(res.total);
@@ -95,17 +96,10 @@ const TableUsers = (props) => {
     }
   }, 500);
 
-  const csvData = [
-    ["firstname", "lastname", "email"],
-    ["Ahmed", "Tomi", "ah@smthing.co.com"],
-    ["Raed", "Labes", "rl@smthing.co.com"],
-    ["Yezzi", "Min l3b", "ymin@cocococo.com"],
-  ];
-
   const getUsersExport = (event, done) => {
     let result = [];
     if (listUsers && listUsers.length > 0) {
-      result.push(["Id", "Email", "First name", "Last name"]);
+      result.push(["id", "email", "first_name", "last_name"]);
       listUsers.map((item, index) => {
         let arr = [];
         arr[0] = item.id;
@@ -118,7 +112,52 @@ const TableUsers = (props) => {
       done();
     }
   };
+  const handleImport = (event) => {
+    if (event.target && event.target.files && event.target.files[0]) {
+      let file = event.target.files[0];
+      if (file.type !== "text/csv") {
+        toast.error("Only accept CSV file");
+        return;
+      }
 
+      Papa.parse(file, {
+        // heading: true,
+        complete: function (results) {
+          let rawCSV = results.data;
+          if (rawCSV.length > 0) {
+            if (rawCSV[0] && rawCSV[0].length === 4) {
+              if (
+                rawCSV[0][0] !== "id" ||
+                rawCSV[0][1] !== "email" ||
+                rawCSV[0][2] !== "first_name" ||
+                rawCSV[0][3] !== "last_name"
+              ) {
+                toast.error("Wrong format CSV");
+              } else {
+                let result = [];
+                console.log("RawCSV: ", rawCSV);
+                rawCSV.map((item, index) => {
+                  if (index > 0 && item.length === 4) {
+                    let obj = {};
+                    obj.id = item[0];
+                    obj.email = item[1];
+                    obj.first_name = item[2];
+                    obj.last_name = item[3];
+                    result.push(obj);
+                  }
+                });
+                setListUsers(result);
+              }
+            } else {
+              toast.error("Wrong format CSV file");
+            }
+          } else {
+            toast.error("Not found data on CSv file");
+          }
+        },
+      });
+    }
+  };
   useEffect(() => {
     getUsers(1);
   }, []);
@@ -140,7 +179,12 @@ const TableUsers = (props) => {
           <label htmlFor="openFile" className="btn btn-warning">
             <i class="fa-solid fa-file-import"></i> Import
           </label>
-          <input type="file" id="openFile" hidden />
+          <input
+            type="file"
+            id="openFile"
+            hidden
+            onChange={(event) => handleImport(event)}
+          />
 
           <CSVLink
             filename={"users.csv"}
